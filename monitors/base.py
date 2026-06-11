@@ -9,6 +9,7 @@ class ChangeEvent:
     operation: str        # INSERT / UPDATE / DELETE
     query_executed: str
     dt_operation_executed: datetime
+    source: str # "postgres" or "oracle"
 
 class BaseMonitor(ABC):
 
