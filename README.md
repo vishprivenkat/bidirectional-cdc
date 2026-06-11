@@ -1,4 +1,4 @@
-# Bidirectional CDC System: Oracle ↔ Postgres
+# Bidirectional CDC System
 
 ## Overview
 
@@ -11,12 +11,12 @@ Change Data Capture is a mechanism of keeping two or more distributed databases 
 AWS Database Migration Service (DMS) has a critical limitation: it doesn't properly handle Oracle's legacy `LONG RAW` data type. When attempting to migrate or replicate tables containing `LONG RAW` columns, DMS silently truncates the data, leading to data loss and corruption.
 
 In our use case:
-- 200+ tables in the Oracle schema
+- 200+ tables in the Oracle database
 - ~80 tables (40%) contain `LONG RAW` binary data
 - Cannot afford data loss or corruption
 - Required bidirectional sync (not just one-way migration)
 
-## Solution Architecture
+## Solution Architecture (Representative)
 
 ### Core Components
 
@@ -37,7 +37,7 @@ In our use case:
 
 4. **Resilience Layer**
    - `audit_log`: Tracks all successful operations
-   - `error_log`: Tracks failed operations with PENDING status
+   - `error_log`: Tracks failed operations with PENDING status, keeps track of retries 
    - Retry poller: Runs every 5 minutes to retry failed operations
    - Maximum 3 retry attempts before escalation
    - Alerting system for operations exceeding retry threshold
