@@ -27,25 +27,11 @@ In our use case:
 
 2. **Replication Engine**
    - Applies changes from source to target database
-   - Custom binary data type transformation (LONG RAW → BYTEA)
-   - Conflict resolution using Last-Write-Wins (LWW) strategy
 
-3. **Conflict Resolution**
-   - Handles concurrent updates to the same record in both databases
-   - Uses timestamp comparison to determine latest version
-   - Prevents stale data from overwriting recent changes
-
-4. **Resilience Layer**
+3. **Resilience Layer**
    - `audit_log`: Tracks all successful operations
    - `error_log`: Tracks failed operations with PENDING status, keeps track of retries 
-   - Retry poller: Runs every 5 minutes to retry failed operations
-   - Maximum 3 retry attempts before escalation
-   - Alerting system for operations exceeding retry threshold
-
-5. **Write Scaling**
-   - SQS-based batching for high-volume CDC operations
-   - Handles burst traffic from bulk updates
-   - Decouples change detection from write operations
+   - `orchestrator`: clears out stale jobs, runs retry poller to clear failed jobs with failures < THRESHOLD 
 
 ## Key Features
 
@@ -89,8 +75,6 @@ This repository contains sanitized versions of the core components:
 - **monitors/**: Redo Log and WAL monitoring logic
 - **replication/**: Conflict resolution and binary data handling
 - **resilience/**: Retry mechanism, error tracking, and audit logging
-- **scaling/**: SQS batching for write operations
-- **tests/**: Unit tests with mocked database operations
 
 ## Production Stats (Representative)
 
