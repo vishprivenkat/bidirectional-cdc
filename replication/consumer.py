@@ -1,5 +1,5 @@
 '''
-consumer.py - processor nodes that perform the task published to the SQS queue by monitors 
+consumer.py - processor nodes that perform the task published to the job_log by monitors 
 Note: In real implementation, each consumer node is a separate microservice, which is scaled using EKS. 
 
 '''
@@ -95,11 +95,6 @@ class Consumer:
         cur.execute(query)
         self.oracle_conn.commit()
 
-    def _delete(self, receipt_handle: str):
-        self.sqs.delete_message(
-            QueueUrl=self.queue_url,
-            ReceiptHandle=receipt_handle
-        )
 
 
 if __name__ == "__main__":
