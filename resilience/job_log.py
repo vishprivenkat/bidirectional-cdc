@@ -10,6 +10,7 @@ import psycopg2
 from datetime import datetime
 from monitors.base import ChangeEvent
 
+MAX_RETRY_COUNT = int(os.getenv("MAX_RETRY_COUNT", 3)) 
 
 class JobLog:
 
@@ -37,36 +38,35 @@ class JobLog:
                 event.source
             ))
         self.conn.commit()
-
     def claim(self, worker_id: str) -> dict | None:
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE job_log
-                SET status = 'processing',
-                    worker_id = %s,
-                    dt_claimed_at = %s
-                WHERE id = (
-                    SELECT id FROM job_log
-                    WHERE status = 'pending'
-                    ORDER BY dt_operation_executed ASC
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT 1
-                )
-                RETURNING id, table_name, operation, query_executed, source
-            """, (worker_id, datetime.utcnow()))
-            row = cur.fetchone()
-        self.conn.commit()
+      with self.conn.cursor() as cur:
+          cur.execute("""
+              UPDATE job_log
+              SET status = 'processing',
+                  worker_id = %s,
+                  dt_claimed_at = %s
+              WHERE id = (
+                  SELECT id FROM job_log
+                  WHERE (status = 'pending' OR (status = 'failed' AND retry_count < %s))
+                  ORDER BY dt_operation_executed ASC
+                  FOR UPDATE SKIP LOCKED
+                  LIMIT 1
+              )
+              RETURNING id, table_name, operation, query_executed, source
+          """, (worker_id, datetime.utcnow(), MAX_RETRY_COUNT))
+          row = cur.fetchone()
+      self.conn.commit()
 
-        if row:
-            return {
-                "id": row[0],
-                "table_name": row[1],
-                "operation": row[2],
-                "query_executed": row[3],
-                "source": row[4]
-            }
-        return None
-
+      if row:
+          return {
+              "id": row[0],
+              "table_name": row[1],
+              "operation": row[2],
+              "query_executed": row[3],
+              "source": row[4]
+          }
+      return None
+    
     def complete(self, job_id: str):
         with self.conn.cursor() as cur:
             cur.execute("""
