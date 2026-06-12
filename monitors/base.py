@@ -10,6 +10,7 @@ class ChangeEvent:
     query_executed: str
     dt_operation_executed: datetime
     source: str # "postgres" or "oracle"
+    primary_key: str | None = None  # Primary key value for conflict resolution
 
 class BaseMonitor(ABC):
 

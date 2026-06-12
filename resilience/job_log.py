@@ -22,11 +22,11 @@ class JobLog:
             cur.execute("""
                 INSERT INTO job_log (
                     id, table_name, operation, query_executed,
-                    dt_operation_executed, source, status,
+                    dt_operation_executed, source, primary_key, status,
                     worker_id, dt_claimed_at, retry_count,
                     error_message, dt_completed_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s,
                     'pending', NULL, NULL, 0, NULL, NULL
                 )
             """, (
@@ -35,11 +35,34 @@ class JobLog:
                 event.operation,
                 event.query_executed,
                 event.dt_operation_executed,
-                event.source
+                event.source,
+                event.primary_key
             ))
         self.conn.commit()
     def claim(self, worker_id: str) -> dict | None:
       with self.conn.cursor() as cur:
+          # First, mark superseded jobs as obsolete (conflict resolution)
+          cur.execute("""
+              UPDATE job_log
+              SET status = 'obsolete'
+              WHERE status IN ('pending', 'failed')
+                AND retry_count < %s
+                AND primary_key IS NOT NULL
+                AND id IN (
+                    SELECT j1.id
+                    FROM job_log j1
+                    WHERE EXISTS (
+                        SELECT 1 FROM job_log j2
+                        WHERE j2.table_name = j1.table_name
+                          AND j2.primary_key = j1.primary_key
+                          AND j2.dt_operation_executed > j1.dt_operation_executed
+                          AND j2.status IN ('pending', 'failed', 'processing')
+                          AND j2.retry_count < %s
+                    )
+                )
+          """, (MAX_RETRY_COUNT, MAX_RETRY_COUNT))
+
+          # Now claim the next available job
           cur.execute("""
               UPDATE job_log
               SET status = 'processing',
@@ -52,7 +75,7 @@ class JobLog:
                   FOR UPDATE SKIP LOCKED
                   LIMIT 1
               )
-              RETURNING id, table_name, operation, query_executed, source
+              RETURNING id, table_name, operation, query_executed, source, primary_key
           """, (worker_id, datetime.utcnow(), MAX_RETRY_COUNT))
           row = cur.fetchone()
       self.conn.commit()
@@ -63,7 +86,8 @@ class JobLog:
               "table_name": row[1],
               "operation": row[2],
               "query_executed": row[3],
-              "source": row[4]
+              "source": row[4],
+              "primary_key": row[5]
           }
       return None
     
